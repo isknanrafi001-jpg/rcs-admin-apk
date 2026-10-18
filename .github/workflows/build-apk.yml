@@ -1,0 +1,58 @@
+name: Build RCS Admin Pannel APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Android APK from uploaded ZIP
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Find and extract source ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP_FILE="RCS-Admin-Pannel-Source.zip"
+          if [ ! -f "$ZIP_FILE" ]; then
+            echo "Missing $ZIP_FILE in the repository root. Upload the source ZIP with this exact filename."
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/rcs-admin-source"
+          unzip -q "$ZIP_FILE" -d "$RUNNER_TEMP/rcs-admin-source"
+          test -f "$RUNNER_TEMP/rcs-admin-source/settings.gradle"
+          test -f "$RUNNER_TEMP/rcs-admin-source/app/build.gradle"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build debug APK
+        working-directory: ${{ runner.temp }}/rcs-admin-source
+        run: gradle --no-daemon assembleDebug
+
+      - name: Rename APK for download
+        shell: bash
+        run: cp "$RUNNER_TEMP/rcs-admin-source/app/build/outputs/apk/debug/app-debug.apk" "$RUNNER_TEMP/RCS-Admin-Pannel.apk"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RCS-Admin-Pannel-APK
+          path: ${{ runner.temp }}/RCS-Admin-Pannel.apk
+          if-no-files-found: error
+          retention-days: 14
